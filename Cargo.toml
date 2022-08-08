@@ -1,0 +1,15 @@
+[package]
+name = "osr-parser"
+authors = ["Sailor SnoW <snxwin@pm.me>"]
+description = "Osu replay parser to use replay data in Rust projects"
+repository = "https://github.com/SailorSnoW/osr-parser/"
+license =  "MIT/Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rust-crypto = "0.2.36"
+chrono = "0.4.21"
+xz2 = "0.1.7"
+thiserror = "1.0.32"
+byteorder = "1.4.3"
