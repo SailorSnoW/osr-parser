@@ -95,13 +95,21 @@ impl FromStr for ReplayFrame {
 }
 
 impl ReplayFrame {
-    pub fn set_x(&mut self, x: f32) -> Result<(), Error> {
+    pub fn x(&self) -> Float {
+        self.x
+    }
+
+    pub fn y(&self) -> Float {
+        self.y
+    }
+
+    pub fn set_x(&mut self, x: Float) -> Result<(), Error> {
         self.x = x;
         Self::validate_x(self)?;
         Ok(())
     }
 
-    pub fn set_y(&mut self, y: f32) -> Result<(), Error> {
+    pub fn set_y(&mut self, y: Float) -> Result<(), Error> {
         self.y = y;
         Self::validate_y(self)?;
         Ok(())
@@ -175,7 +183,7 @@ pub struct Replay {
 }
 
 impl Replay {
-    pub fn from_path(path: &Path) -> Result<Self, Error> {
+    pub fn open(path: &Path) -> Result<Self, Error> {
         match path.extension() {
             Some(extension) if extension == "osr" => {
                 let file = File::open(path).map_err(|_| Error::CantOpenFile)?;
@@ -285,25 +293,17 @@ impl Replay {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs::File,
-        io::{BufReader, Read},
-    };
+    use std::path::Path;
 
     use super::{Gamemode, Replay};
 
     const TEST_REPLAY_FILE: &'static str = "./assets/examples/replay-test.osr";
 
     #[test]
-    fn parse_from_buffer() {
-        let file = File::open(TEST_REPLAY_FILE).unwrap();
+    fn general_test() {
+        let replay_path = Path::new(TEST_REPLAY_FILE);
 
-        let mut buffer = Vec::new();
-        let mut reader = BufReader::new(file);
-
-        reader.read_to_end(&mut buffer).unwrap();
-
-        let replay = Replay::from_buffer(&mut buffer.as_slice()).unwrap();
+        let replay = Replay::open(&replay_path).unwrap();
 
         assert_eq!(replay.gamemode, Gamemode::STD);
         assert_eq!(replay.game_version, 20210520);
