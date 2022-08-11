@@ -55,6 +55,25 @@ impl FromStr for ReplayData {
     }
 }
 
+impl From<ReplayData> for String {
+    fn from(replay_data: ReplayData) -> Self {
+        let mut s = String::new();
+
+        for frame in replay_data.frames.iter() {
+            let frame_string: String = frame.into();
+            s.push_str(&frame_string);
+        }
+
+        match replay_data.seed {
+            Some(seed) => {
+                s.push_str(&seed.to_string());
+                s
+            }
+            None => s,
+        }
+    }
+}
+
 impl ReplayData {
     pub fn new() -> Self {
         Self::default()
@@ -99,6 +118,12 @@ impl FromStr for ReplayFrame {
         frame.validate_y()?;
 
         Ok(frame)
+    }
+}
+
+impl From<&ReplayFrame> for String {
+    fn from(frame: &ReplayFrame) -> Self {
+        format!("{}|{}|{}|{}", frame.w, frame.x, frame.y, frame.z)
     }
 }
 
@@ -315,6 +340,12 @@ impl TryFrom<&File> for Replay {
             .map_err(|_| Error::FileBufferingError)?;
 
         buffer.try_into()
+    }
+}
+
+impl From<Replay> for Vec<u8> {
+    fn from(replay: Replay) -> Self {
+        todo!()
     }
 }
 
