@@ -1,4 +1,6 @@
 use chrono::NaiveDateTime;
+use std::borrow::Borrow;
+use std::io::Cursor;
 use std::{
     fs::File,
     io::{BufReader, Read},
@@ -53,6 +55,12 @@ impl FromStr for ReplayData {
     }
 }
 
+impl ReplayData {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Parsed data of a frame replay data
@@ -95,13 +103,25 @@ impl FromStr for ReplayFrame {
 }
 
 impl ReplayFrame {
-    pub fn set_x(&mut self, x: f32) -> Result<(), Error> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn x(&self) -> Float {
+        self.x
+    }
+
+    pub fn y(&self) -> Float {
+        self.y
+    }
+
+    pub fn set_x(&mut self, x: Float) -> Result<(), Error> {
         self.x = x;
         Self::validate_x(self)?;
         Ok(())
     }
 
-    pub fn set_y(&mut self, y: f32) -> Result<(), Error> {
+    pub fn set_y(&mut self, y: Float) -> Result<(), Error> {
         self.y = y;
         Self::validate_y(self)?;
         Ok(())
@@ -125,7 +145,7 @@ impl ReplayFrame {
 }
 
 /// Structure of a replay containing parsed values
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Replay {
     /// Game mode of the replay (0 = osu! Standard, 1 = Taiko, 2 = Catch the Beat, 3 = osu!mania)
     pub gamemode: Gamemode,
@@ -175,11 +195,15 @@ pub struct Replay {
 }
 
 impl Replay {
-    pub fn from_path(path: &Path) -> Result<Self, Error> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn open(path: &Path) -> Result<Self, Error> {
         match path.extension() {
             Some(extension) if extension == "osr" => {
                 let file = File::open(path).map_err(|_| Error::CantOpenFile)?;
-                Self::from_file(&file)
+                file.borrow().try_into()
             }
             Some(_) => Err(Error::NotAReplayFile {
                 file: path.to_string_lossy().to_string(),
@@ -190,57 +214,70 @@ impl Replay {
         }
     }
 
-    pub fn from_file(file: &File) -> Result<Self, Error> {
-        let mut buffer = Vec::new();
-        let mut reader = BufReader::new(file);
-
-        reader
-            .read_to_end(&mut buffer)
-            .map_err(|_| Error::FileBufferingError)?;
-
-        Self::from_buffer(&mut buffer.as_slice())
+    fn read_play_date<R: Read>(buf: &mut R) -> ReadResult<NaiveDateTime> {
+        let timestamp_ticks = read_long(buf)?;
+        Ok(ticks_to_datetime(timestamp_ticks))
     }
 
-    pub fn from_buffer<R: Read>(buf: &mut R) -> Result<Self, Error> {
-        let gamemode: Gamemode = Gamemode::try_from(read::read_byte(buf)?)?;
+    fn decompress_replay_data(compressed_data: &Vec<u8>) -> Result<Vec<u8>, Error> {
+        let buffer = compressed_data.as_slice();
+        let mut s = Vec::with_capacity(u32::MAX as usize);
 
-        let game_version = read::read_integer(buf)?;
+        let mut lzma_decoder = Stream::new_lzma_decoder(u32::MAX as u64).unwrap();
 
-        let map_hash = read::read_string(buf)?.unwrap_or_default();
-        let player_name = read::read_string(buf)?.unwrap_or_default();
-        let replay_hash = read::read_string(buf)?.unwrap_or_default();
+        lzma_decoder
+            .process_vec(buffer, &mut s, Action::Finish)
+            .unwrap();
+        Ok(s)
+    }
+}
 
-        let number_300s = read::read_short(buf)?;
-        let number_100s = read::read_short(buf)?;
-        let number_50s = read::read_short(buf)?;
-        let number_gekis = read::read_short(buf)?;
-        let number_katus = read::read_short(buf)?;
-        let number_misses = read::read_short(buf)?;
+impl TryFrom<Vec<u8>> for Replay {
+    type Error = Error;
 
-        let total_score = read::read_integer(buf)?;
-        let greatest_combo = read::read_short(buf)?;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let buffer = &mut Cursor::new(value);
 
-        let is_full_combo = match read::read_byte(buf)? {
+        let gamemode: Gamemode = Gamemode::try_from(read::read_byte(buffer)?)?;
+
+        let game_version = read::read_integer(buffer)?;
+
+        let map_hash = read::read_string(buffer)?.unwrap_or_default();
+        let player_name = read::read_string(buffer)?.unwrap_or_default();
+        let replay_hash = read::read_string(buffer)?.unwrap_or_default();
+
+        let number_300s = read::read_short(buffer)?;
+        let number_100s = read::read_short(buffer)?;
+        let number_50s = read::read_short(buffer)?;
+        let number_gekis = read::read_short(buffer)?;
+        let number_katus = read::read_short(buffer)?;
+        let number_misses = read::read_short(buffer)?;
+
+        let total_score = read::read_integer(buffer)?;
+        let greatest_combo = read::read_short(buffer)?;
+
+        let is_full_combo = match read::read_byte(buffer)? {
             0x00 => false,
             0x01 => true,
             _ => return Err(Error::UnexpectedFullComboValue),
         };
 
-        let mods = read::read_integer(buf)?;
+        let mods = read::read_integer(buffer)?;
 
-        let life_bar_graph = read::read_string(buf)?;
-        let play_date = Self::read_play_date(buf)?;
-        let compressed_length = read::read_integer(buf)?;
+        let life_bar_graph = read::read_string(buffer)?;
+        let play_date = Self::read_play_date(buffer)?;
+        let compressed_length = read::read_integer(buffer)?;
 
         let mut compressed_replay_data = vec![0u8; compressed_length as usize];
-        buf.read(&mut compressed_replay_data)
+        buffer
+            .read(&mut compressed_replay_data)
             .map_err(|_| Error::ReadBufferingError)?;
 
         let decompressed_replay_data = Self::decompress_replay_data(&compressed_replay_data)?;
         let replay_data =
             ReplayData::from_str(&String::from_utf8(decompressed_replay_data).unwrap_or_default())?;
 
-        let score_id = read::read_long(buf)?;
+        let score_id = read::read_long(buffer)?;
 
         Ok(Self {
             gamemode,
@@ -264,46 +301,38 @@ impl Replay {
             score_id,
         })
     }
+}
 
-    fn read_play_date<R: Read>(buf: &mut R) -> ReadResult<NaiveDateTime> {
-        let timestamp_ticks = read_long(buf)?;
-        Ok(ticks_to_datetime(timestamp_ticks))
-    }
+impl TryFrom<&File> for Replay {
+    type Error = Error;
 
-    fn decompress_replay_data(compressed_data: &Vec<u8>) -> Result<Vec<u8>, Error> {
-        let buffer = &compressed_data.as_slice();
-        let mut s = Vec::with_capacity(u32::MAX as usize);
+    fn try_from(value: &File) -> Result<Self, Self::Error> {
+        let mut buffer = Vec::new();
+        let mut reader = BufReader::new(value);
 
-        let mut lzma_decoder = Stream::new_lzma_decoder(u32::MAX as u64).unwrap();
+        reader
+            .read_to_end(&mut buffer)
+            .map_err(|_| Error::FileBufferingError)?;
 
-        lzma_decoder
-            .process_vec(buffer, &mut s, Action::Finish)
-            .unwrap();
-        Ok(s)
+        buffer.try_into()
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs::File,
-        io::{BufReader, Read},
-    };
+    use std::path::Path;
 
     use super::{Gamemode, Replay};
 
     const TEST_REPLAY_FILE: &'static str = "./assets/examples/replay-test.osr";
 
     #[test]
-    fn parse_from_buffer() {
-        let file = File::open(TEST_REPLAY_FILE).unwrap();
+    fn general_test() {
+        let replay_path = Path::new(TEST_REPLAY_FILE);
 
-        let mut buffer = Vec::new();
-        let mut reader = BufReader::new(file);
-
-        reader.read_to_end(&mut buffer).unwrap();
-
-        let replay = Replay::from_buffer(&mut buffer.as_slice()).unwrap();
+        let replay = Replay::open(&replay_path).unwrap();
 
         assert_eq!(replay.gamemode, Gamemode::STD);
         assert_eq!(replay.game_version, 20210520);

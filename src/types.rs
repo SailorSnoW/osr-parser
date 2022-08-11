@@ -9,8 +9,9 @@ pub type Long = u64;
 pub type Float = f32;
 
 // Format types
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub enum Gamemode {
+    #[default]
     STD,
     TAIKO,
     CTB,
