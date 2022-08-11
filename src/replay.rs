@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use std::borrow::Borrow;
+use std::fs;
 use std::io::Cursor;
 use std::{
     fs::File,
@@ -7,11 +8,11 @@ use std::{
     path::Path,
     str::FromStr,
 };
-use xz2::stream::{Action, Stream};
 
 use crate::error::Error;
 use crate::types::*;
-use crate::utils::read::{read_long, ReadResult};
+use crate::utils::read::{read_long, write_string, ReadResult};
+use crate::utils::{datetime_to_ticks, file::*, lzma::*};
 use crate::utils::{read, ticks_to_datetime};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +53,37 @@ impl FromStr for ReplayData {
         }
 
         Ok(Self { frames, seed })
+    }
+}
+
+impl From<&ReplayData> for String {
+    fn from(replay_data: &ReplayData) -> Self {
+        let mut s = String::new();
+
+        for frame in replay_data.frames.iter() {
+            let frame_string: String = frame.into();
+            s.push_str(&frame_string);
+            s.push(',');
+        }
+
+        match replay_data.seed {
+            Some(seed) => {
+                s.push_str("-12345|0|0|");
+                s.push_str(&seed.to_string());
+                s.push(',');
+                s
+            }
+            None => s,
+        }
+    }
+}
+
+impl TryFrom<&ReplayData> for Vec<u8> {
+    type Error = Error;
+
+    fn try_from(replay_data: &ReplayData) -> Result<Self, Error> {
+        let uncompressed = String::from(replay_data).as_bytes().to_vec();
+        compress_replay_data(uncompressed)
     }
 }
 
@@ -99,6 +131,12 @@ impl FromStr for ReplayFrame {
         frame.validate_y()?;
 
         Ok(frame)
+    }
+}
+
+impl From<&ReplayFrame> for String {
+    fn from(frame: &ReplayFrame) -> Self {
+        format!("{}|{}|{}|{}", frame.w, frame.x, frame.y, frame.z)
     }
 }
 
@@ -200,35 +238,52 @@ impl Replay {
     }
 
     pub fn open(path: &Path) -> Result<Self, Error> {
-        match path.extension() {
-            Some(extension) if extension == "osr" => {
-                let file = File::open(path).map_err(|_| Error::CantOpenFile)?;
-                file.borrow().try_into()
-            }
-            Some(_) => Err(Error::NotAReplayFile {
-                file: path.to_string_lossy().to_string(),
-            }),
-            None => Err(Error::NotAFile {
-                path: path.to_string_lossy().to_string(),
-            }),
-        }
+        ensure_replay_file(path)?;
+
+        let file = File::open(path).map_err(|_| Error::CantOpenFile)?;
+        file.borrow().try_into()
+    }
+
+    pub fn write(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        ensure_replay_file(path)?;
+
+        let buffer: Vec<u8> = self.try_into()?;
+        Ok(fs::write(path, buffer)?)
     }
 
     fn read_play_date<R: Read>(buf: &mut R) -> ReadResult<NaiveDateTime> {
         let timestamp_ticks = read_long(buf)?;
         Ok(ticks_to_datetime(timestamp_ticks))
     }
+}
 
-    fn decompress_replay_data(compressed_data: &Vec<u8>) -> Result<Vec<u8>, Error> {
-        let buffer = compressed_data.as_slice();
-        let mut s = Vec::with_capacity(u32::MAX as usize);
+impl TryFrom<&Replay> for Vec<u8> {
+    type Error = Error;
 
-        let mut lzma_decoder = Stream::new_lzma_decoder(u32::MAX as u64).unwrap();
+    fn try_from(replay: &Replay) -> Result<Self, Error> {
+        let mut buffer = Vec::<u8>::new();
 
-        lzma_decoder
-            .process_vec(buffer, &mut s, Action::Finish)
-            .unwrap();
-        Ok(s)
+        buffer.push(replay.gamemode.borrow().into());
+        buffer.append(&mut replay.game_version.to_le_bytes().to_vec());
+        write_string(&Some(&replay.map_hash), &mut buffer);
+        write_string(&Some(&replay.player_name), &mut buffer);
+        write_string(&Some(&replay.replay_hash), &mut buffer);
+        buffer.append(&mut replay.number_300s.to_le_bytes().to_vec());
+        buffer.append(&mut replay.number_100s.to_le_bytes().to_vec());
+        buffer.append(&mut replay.number_50s.to_le_bytes().to_vec());
+        buffer.append(&mut replay.number_gekis.to_le_bytes().to_vec());
+        buffer.append(&mut replay.number_katus.to_le_bytes().to_vec());
+        buffer.append(&mut replay.number_misses.to_le_bytes().to_vec());
+        buffer.append(&mut replay.total_score.to_le_bytes().to_vec());
+        buffer.append(&mut replay.greatest_combo.to_le_bytes().to_vec());
+        buffer.push(replay.is_full_combo.into());
+        buffer.append(&mut replay.mods.to_le_bytes().to_vec());
+        write_string(&replay.life_bar_graph.as_deref(), &mut buffer);
+        buffer.append(&mut datetime_to_ticks(replay.play_date).to_le_bytes().to_vec());
+        buffer.append(&mut replay.replay_data.borrow().try_into()?);
+        buffer.append(&mut replay.score_id.to_le_bytes().to_vec());
+
+        Ok(buffer)
     }
 }
 
@@ -263,7 +318,6 @@ impl TryFrom<Vec<u8>> for Replay {
         };
 
         let mods = read::read_integer(buffer)?;
-
         let life_bar_graph = read::read_string(buffer)?;
         let play_date = Self::read_play_date(buffer)?;
         let compressed_length = read::read_integer(buffer)?;
@@ -273,7 +327,7 @@ impl TryFrom<Vec<u8>> for Replay {
             .read(&mut compressed_replay_data)
             .map_err(|_| Error::ReadBufferingError)?;
 
-        let decompressed_replay_data = Self::decompress_replay_data(&compressed_replay_data)?;
+        let decompressed_replay_data = decompress_replay_data(&compressed_replay_data)?;
         let replay_data =
             ReplayData::from_str(&String::from_utf8(decompressed_replay_data).unwrap_or_default())?;
 
@@ -327,9 +381,10 @@ mod tests {
     use super::{Gamemode, Replay};
 
     const TEST_REPLAY_FILE: &'static str = "./assets/examples/replay-test.osr";
+    const TEST_NEW_REPLAY_FILE: &'static str = "./assets/examples/replay-new.osr";
 
     #[test]
-    fn general_test() {
+    fn open_replay() {
         let replay_path = Path::new(TEST_REPLAY_FILE);
 
         let replay = Replay::open(&replay_path).unwrap();
@@ -349,7 +404,7 @@ mod tests {
         assert_eq!(replay.greatest_combo, 852);
         assert_eq!(replay.is_full_combo, true);
         assert_eq!(replay.mods, 8);
-        assert_eq!(replay.life_bar_graph, None);
+        assert_eq!(replay.life_bar_graph, Some("".to_string()));
         assert_eq!(
             replay.play_date.format("%Y-%m-%d %H:%M:%S").to_string(),
             "2021-07-08 18:26:50"
@@ -357,5 +412,14 @@ mod tests {
         assert_eq!(replay.score_id, 3760034870);
 
         assert_eq!(replay.replay_data.seed, Some(19290764));
+    }
+
+    #[test]
+    fn write_replay() {
+        let replay_path = Path::new(TEST_REPLAY_FILE);
+
+        let replay = Replay::open(&replay_path).unwrap();
+
+        replay.write(Path::new(TEST_NEW_REPLAY_FILE)).unwrap();
     }
 }

@@ -8,6 +8,8 @@ pub enum Error {
     NotAReplayFile { file: String },
     #[error("Unknown error during file opening")]
     CantOpenFile,
+    #[error("Can't create file at the following path: {}", path)]
+    CantCreateFile { path: String },
     #[error("Unknown error while buffering the file replay datas")]
     FileBufferingError,
     #[error("Unexpected error while reading the value into buffer")]
@@ -24,6 +26,8 @@ pub enum Error {
 
     #[error("Unknown error while decompressing replay data")]
     ReplayDataDecompressError,
+    #[error("Unexpected error while loading the lzma encoder")]
+    NewLzmaEncoderError,
 
     #[error("Invalid event string format")]
     InvalidStringFrameFormat,

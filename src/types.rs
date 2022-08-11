@@ -23,6 +23,17 @@ impl Default for Gamemode {
     }
 }
 
+impl From<&Gamemode> for u8 {
+    fn from(gamemode: &Gamemode) -> Self {
+        match gamemode {
+            STD => 0,
+            TAIKO => 1,
+            CTB => 2,
+            MANIA => 3,
+        }
+    }
+}
+
 impl TryFrom<Byte> for Gamemode {
     type Error = Error;
 
