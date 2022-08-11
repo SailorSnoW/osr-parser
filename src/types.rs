@@ -9,13 +9,18 @@ pub type Long = u64;
 pub type Float = f32;
 
 // Format types
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Gamemode {
-    #[default]
     STD,
     TAIKO,
     CTB,
     MANIA,
+}
+
+impl Default for Gamemode {
+    fn default() -> Self {
+        Self::STD
+    }
 }
 
 impl TryFrom<Byte> for Gamemode {
