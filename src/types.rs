@@ -3,9 +3,9 @@ use crate::error::Error::InvalidGamemode;
 
 // Data types
 pub type Byte = u8;
-pub type Short = u16;
+pub type Short = i16;
 pub type Integer = u32;
-pub type Long = u64;
+pub type Long = i64;
 pub type Float = f32;
 
 // Format types
@@ -15,6 +15,23 @@ pub enum Gamemode {
     TAIKO,
     CTB,
     MANIA,
+}
+
+impl Default for Gamemode {
+    fn default() -> Self {
+        Self::STD
+    }
+}
+
+impl From<&Gamemode> for u8 {
+    fn from(gamemode: &Gamemode) -> Self {
+        match gamemode {
+            Gamemode::STD => 0,
+            Gamemode::TAIKO => 1,
+            Gamemode::CTB => 2,
+            Gamemode::MANIA => 3,
+        }
+    }
 }
 
 impl TryFrom<Byte> for Gamemode {

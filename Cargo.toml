@@ -3,6 +3,7 @@ name = "osr-parser"
 authors = ["Sailor SnoW <snxwin@pm.me>"]
 description = "Osu replay parser to use replay data in Rust projects"
 repository = "https://github.com/SailorSnoW/osr-parser/"
+publish = ["crates.io"]
 license =  "MIT/Apache-2.0"
 version = "0.1.0"
 edition = "2021"
