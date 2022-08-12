@@ -60,6 +60,7 @@ impl From<&ReplayData> for String {
     fn from(replay_data: &ReplayData) -> Self {
         let mut s = String::new();
 
+        // default first frames in each replay
         for frame in replay_data.frames.iter() {
             let frame_string: String = frame.into();
             s.push_str(&frame_string);
@@ -101,9 +102,9 @@ pub struct ReplayFrame {
     /// Time in milliseconds since the previous action
     pub w: Long,
     /// x-coordinate of the cursor from 0 - 512
-    x: Float,
+    pub x: Float,
     /// y-coordinate of the cursor from 0 - 384
-    y: Float,
+    pub y: Float,
     /// Bitwise combination of keys/mouse buttons pressed
     /// (M1 = 1, M2 = 2, K1 = 4, K2 = 8, Smoke = 16)
     /// (K1 is always used with M1; K2 is always used with M2: 1+4=5; 2+8=10)
@@ -127,9 +128,6 @@ impl FromStr for ReplayFrame {
             z: Integer::from_str(splitted_event[3]).map_err(|_| Error::CantParseFrameValue)?,
         };
 
-        frame.validate_x()?;
-        frame.validate_y()?;
-
         Ok(frame)
     }
 }
@@ -143,42 +141,6 @@ impl From<&ReplayFrame> for String {
 impl ReplayFrame {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn x(&self) -> Float {
-        self.x
-    }
-
-    pub fn y(&self) -> Float {
-        self.y
-    }
-
-    pub fn set_x(&mut self, x: Float) -> Result<(), Error> {
-        self.x = x;
-        Self::validate_x(self)?;
-        Ok(())
-    }
-
-    pub fn set_y(&mut self, y: Float) -> Result<(), Error> {
-        self.y = y;
-        Self::validate_y(self)?;
-        Ok(())
-    }
-
-    fn validate_x(&self) -> Result<(), Error> {
-        if self.x >= -512_f32 && self.x <= 512_f32 {
-            Ok(())
-        } else {
-            return Err(Error::InvalidFrameValueX);
-        }
-    }
-
-    fn validate_y(&self) -> Result<(), Error> {
-        if self.y >= -384_f32 && self.y <= 384_f32 {
-            Ok(())
-        } else {
-            return Err(Error::InvalidFrameValueY);
-        }
     }
 }
 
@@ -280,7 +242,13 @@ impl TryFrom<&Replay> for Vec<u8> {
         buffer.append(&mut replay.mods.to_le_bytes().to_vec());
         write_string(&replay.life_bar_graph.as_deref(), &mut buffer);
         buffer.append(&mut datetime_to_ticks(replay.play_date).to_le_bytes().to_vec());
-        buffer.append(&mut replay.replay_data.borrow().try_into()?);
+        let mut replay_data_compressed: Vec<u8> = replay.replay_data.borrow().try_into()?;
+        buffer.append(
+            &mut (replay_data_compressed.len() as Integer)
+                .to_le_bytes()
+                .to_vec(),
+        );
+        buffer.append(&mut replay_data_compressed);
         buffer.append(&mut replay.score_id.to_le_bytes().to_vec());
 
         Ok(buffer)
@@ -328,6 +296,7 @@ impl TryFrom<Vec<u8>> for Replay {
             .map_err(|_| Error::ReadBufferingError)?;
 
         let decompressed_replay_data = decompress_replay_data(&compressed_replay_data)?;
+
         let replay_data =
             ReplayData::from_str(&String::from_utf8(decompressed_replay_data).unwrap_or_default())?;
 
@@ -376,6 +345,7 @@ impl TryFrom<&File> for Replay {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::path::Path;
 
     use super::{Gamemode, Replay};
@@ -412,6 +382,9 @@ mod tests {
         assert_eq!(replay.score_id, 3760034870);
 
         assert_eq!(replay.replay_data.seed, Some(19290764));
+
+        let test = String::from(&replay.replay_data).as_bytes().to_vec();
+        fs::write("./after-parse-replay.bin", test.clone()).unwrap();
     }
 
     #[test]

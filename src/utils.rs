@@ -1,4 +1,4 @@
-use crate::types::{Integer, Long};
+use crate::types::Long;
 use chrono::NaiveDateTime;
 
 pub mod read {
@@ -18,7 +18,7 @@ pub mod read {
     pub fn read_short<R: Read>(buf: &mut R) -> ReadResult<Short> {
         let mut x = [0, 0];
         buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
-        Ok(LittleEndian::read_u16(&x))
+        Ok(LittleEndian::read_i16(&x))
     }
 
     pub fn read_integer<R: Read>(buf: &mut R) -> ReadResult<Integer> {
@@ -30,7 +30,7 @@ pub mod read {
     pub fn read_long<R: Read>(buf: &mut R) -> ReadResult<Long> {
         let mut x = [0, 0, 0, 0, 0, 0, 0, 0];
         buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
-        Ok(LittleEndian::read_u64(&x))
+        Ok(LittleEndian::read_i64(&x))
     }
 
     pub fn read_string<R: Read>(buf: &mut R) -> ReadResult<Option<String>> {
@@ -84,8 +84,8 @@ pub mod lzma {
     }
 
     pub fn compress_replay_data(uncompressed_data: Vec<u8>) -> Result<Vec<u8>, Error> {
-        let mut lzma_encoder = Stream::new_easy_encoder(6, xz2::stream::Check::Crc64)
-            .map_err(|_| Error::NewLzmaEncoderError)?;
+        let mut lzma_encoder =
+            Stream::new_lzma_encoder(&LzmaOptions::new_preset(6).unwrap()).unwrap();
         let mut buffer = Vec::with_capacity(uncompressed_data.len());
 
         lzma_encoder
@@ -117,9 +117,10 @@ pub fn ticks_to_datetime(t_ticks: Long) -> NaiveDateTime {
     NaiveDateTime::from_timestamp(((t_ticks / 10000000) - 62135596800).try_into().unwrap(), 0)
 }
 
-pub fn datetime_to_ticks(datetime: NaiveDateTime) -> Integer {
+pub fn datetime_to_ticks(datetime: NaiveDateTime) -> Long {
     let unix = datetime.timestamp();
-    ((unix + 62135596800) * 10000000) as Integer
+    let t_ticks = ((unix + 62135596800) * 10000000) as Long;
+    t_ticks
 }
 
 #[cfg(test)]
