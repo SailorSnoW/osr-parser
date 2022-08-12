@@ -8,7 +8,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rust-crypto = "0.2.36"
 chrono = "0.4.21"
 xz2 = "0.1.7"
 thiserror = "1.0.32"

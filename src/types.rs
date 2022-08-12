@@ -1,9 +1,8 @@
 use crate::error::Error;
-use crate::error::Error::InvalidGamemode;
 
 // Data types
 pub type Byte = u8;
-pub type Short = i16;
+pub type Short = u16;
 pub type Integer = u32;
 pub type Long = i64;
 pub type Float = f32;
@@ -43,7 +42,7 @@ impl TryFrom<Byte> for Gamemode {
             0x01 => Ok(Self::TAIKO),
             0x02 => Ok(Self::CTB),
             0x03 => Ok(Self::MANIA),
-            _ => Err(InvalidGamemode),
+            _ => Err(Error::InvalidGamemode),
         }
     }
 }

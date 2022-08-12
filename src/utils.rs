@@ -18,7 +18,7 @@ pub mod read {
     pub fn read_short<R: Read>(buf: &mut R) -> ReadResult<Short> {
         let mut x = [0, 0];
         buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
-        Ok(LittleEndian::read_i16(&x))
+        Ok(LittleEndian::read_u16(&x))
     }
 
     pub fn read_integer<R: Read>(buf: &mut R) -> ReadResult<Integer> {
