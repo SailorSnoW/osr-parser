@@ -76,6 +76,12 @@ impl ReplayData {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn to_hardrock(&mut self) {
+        for frame in self.frames.iter_mut() {
+            frame.reverse()
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -123,7 +129,27 @@ impl From<&ReplayFrame> for String {
 }
 
 impl ReplayFrame {
+    pub const MAX_X: f32 = 512.0;
+    pub const CENTER_X: f32 = Self::MAX_X / 2.0;
+    pub const MAX_Y: f32 = 384.0;
+    pub const CENTER_Y: f32 = Self::MAX_Y / 2.0;
+
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn reverse(&mut self) {
+
+            if self.y > Self::CENTER_Y {
+                let diff = self.y - Self::CENTER_Y;
+                self.y = self.y - diff * 2.0;
+                return;
+            }
+            if self.y < Self::CENTER_Y {
+                let diff = Self::CENTER_Y - self.y;
+                self.y = self.y + diff * 2.0;
+                return;
+            }
+
     }
 }

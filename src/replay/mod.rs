@@ -119,6 +119,7 @@ impl TryFrom<Replay> for Vec<u8> {
                 .to_le_bytes()
                 .to_vec(),
         );
+
         buffer.append(&mut replay_data_compressed);
         buffer.append(&mut replay.score_id.to_le_bytes().to_vec());
 
@@ -255,7 +256,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn write_replay() {
         let replay_path = Path::new(TEST_REPLAY_FILE);
 
