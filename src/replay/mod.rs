@@ -1,5 +1,6 @@
 use crate::error::Error;
 use crate::types::*;
+use life_bar::*;
 use replay_data::*;
 use std::borrow::Borrow;
 use std::fs::{self, File};
@@ -13,7 +14,8 @@ use crate::utils::read::*;
 use crate::utils::*;
 use chrono::NaiveDateTime;
 
-mod replay_data;
+pub mod life_bar;
+pub mod replay_data;
 
 /// Structure of a replay containing parsed values
 #[derive(Debug, Default)]
