@@ -55,7 +55,7 @@ pub struct Replay {
     /// u is the time in milliseconds into the song,
     /// v is a floating point value from 0 - 1 that represents the amount of life you have at the given time
     /// (0 = life bar is empty, 1= life bar is full)
-    pub life_bar_graph: Option<String>,
+    pub life_bar_graph: LifeBar,
 
     /// Parsed date and time of the play from the ticks timestamp
     pub play_date: NaiveDateTime,
@@ -113,7 +113,7 @@ impl TryFrom<Replay> for Vec<u8> {
         buffer.append(&mut replay.greatest_combo.to_le_bytes().to_vec());
         buffer.push(replay.is_full_combo.into());
         buffer.append(&mut replay.mods.bits().to_le_bytes().to_vec());
-        write_string(&replay.life_bar_graph.as_deref(), &mut buffer);
+        write_string(&Some(&replay.life_bar_graph.serialize()), &mut buffer);
         buffer.append(&mut datetime_to_ticks(replay.play_date).to_le_bytes().to_vec());
         let mut replay_data_compressed: Vec<u8> = replay.replay_data.borrow().try_into()?;
         buffer.append(
@@ -160,7 +160,7 @@ impl TryFrom<Vec<u8>> for Replay {
         };
 
         let mods = read::read_integer(buffer)?.into();
-        let life_bar_graph = read::read_string(buffer)?;
+        let life_bar_graph = LifeBar::from_str(&read::read_string(buffer)?.unwrap_or_default())?;
         let play_date = Self::read_play_date(buffer)?;
         let compressed_length = read::read_integer(buffer)?;
 
@@ -247,7 +247,7 @@ mod tests {
         assert_eq!(replay.greatest_combo, 852);
         assert_eq!(replay.is_full_combo, true);
         assert_eq!(replay.mods, Mods::HIDDEN);
-        assert_eq!(replay.life_bar_graph, Some("".to_string()));
+        assert_eq!(replay.life_bar_graph.events().len(), 0);
         assert_eq!(
             replay.play_date.format("%Y-%m-%d %H:%M:%S").to_string(),
             "2021-07-08 18:26:50"

@@ -1,8 +1,12 @@
 use crate::error::Error;
 use std::str::FromStr;
 
-#[derive(Default)]
-pub struct LifeBar(Vec<LifeBarEvent>);
+/// Represents parsed data of the life bar graph
+#[derive(Default, Debug)]
+pub struct LifeBar {
+    pub base_time: u32,
+    events: Vec<LifeBarEvent>,
+}
 
 impl LifeBar {
     pub fn new() -> Self {
@@ -10,11 +14,19 @@ impl LifeBar {
     }
 
     pub fn events(&self) -> &Vec<LifeBarEvent> {
-        &self.0
+        &self.events
+    }
+
+    pub fn parse(str: &str) -> Result<Self, Error> {
+        LifeBar::from_str(str)
     }
 
     pub fn serialize(&self) -> String {
         self.into()
+    }
+
+    pub fn delete_bar_data(&mut self) {
+        *self = Self::default()
     }
 }
 
@@ -28,23 +40,43 @@ impl FromStr for LifeBar {
 
         for event in splitted_events.iter() {
             if event.len() > 0 && event.contains(',') {
-                events.push(LifeBarEvent::from_str(event)?)
+                match LifeBarEvent::from_str(event) {
+                    Ok(e) => events.push(e),
+                    Err(_) => (),
+                }
             }
         }
 
-        Ok(Self { 0: events })
+        Ok(Self {
+            base_time: u32::from_str(splitted_events[0]).unwrap_or_default(),
+            events,
+        })
     }
 }
 
 impl From<&LifeBar> for String {
     fn from(life_bar: &LifeBar) -> Self {
-        let mut s = String::from("|");
+        if life_bar.events().len() == 0 {
+            return String::from("");
+        }
 
-        for event in life_bar.0.iter() {
+        let mut s = String::new();
+
+        if life_bar.base_time > 0 {
+            s.push_str(&life_bar.base_time.to_string())
+        }
+
+        for event in life_bar.events.iter() {
+            s.push('|');
             let serialized = event.serialize();
             s.push_str(&serialized);
-            s.push('|');
         }
+
+        if s.len() > 0 {
+            s.push('|')
+        }
+
+        s.push_str("1,");
 
         s
     }
@@ -52,7 +84,7 @@ impl From<&LifeBar> for String {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Default)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct LifeBarEvent {
     /// time in milliseconds into the song
     pub u: u32,
@@ -124,23 +156,26 @@ mod tests {
 
     #[test]
     fn parse_lifebar() {
-        let valid_events = "|1,2657|1,10213|";
+        let valid_events = "256|1,2657|1,10213|1,";
 
         let life_bar = LifeBar::from_str(valid_events).unwrap();
 
-        assert_eq!(life_bar.0[0].u, 2657);
-        assert_eq!(life_bar.0[0].v, 1.0);
-        assert_eq!(life_bar.0[1].u, 10213);
-        assert_eq!(life_bar.0[1].v, 1.0);
+        assert_eq!(life_bar.base_time, 256);
+
+        assert_eq!(life_bar.events[0].u, 2657);
+        assert_eq!(life_bar.events[0].v, 1.0);
+        assert_eq!(life_bar.events[1].u, 10213);
+        assert_eq!(life_bar.events[1].v, 1.0);
     }
     #[test]
     fn serialize_lifebar() {
         let mut life_bar = LifeBar::new();
-        life_bar.0.push(LifeBarEvent { u: 2657, v: 1.0 });
-        life_bar.0.push(LifeBarEvent { u: 10213, v: 1.0 });
+        life_bar.base_time = 256;
+        life_bar.events.push(LifeBarEvent { u: 2657, v: 1.0 });
+        life_bar.events.push(LifeBarEvent { u: 10213, v: 1.0 });
 
         let serialized_lifebar = life_bar.serialize();
 
-        assert_eq!(serialized_lifebar, "|1,2657|1,10213|");
+        assert_eq!(serialized_lifebar, "256|1,2657|1,10213|1,");
     }
 }
