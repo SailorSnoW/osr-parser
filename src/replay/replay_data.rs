@@ -77,7 +77,19 @@ impl ReplayData {
         Self::default()
     }
 
-    pub fn to_hardrock(&mut self) {
+    pub fn parse(str: &str) -> Result<Self, Error> {
+        Self::from_str(str)
+    }
+
+    pub fn serialize(&self) -> String {
+        self.into()
+    }
+
+    pub fn compress(&self) -> Result<Vec<u8>, Error> {
+        self.try_into()
+    }
+
+    pub fn hardrock_reverse(&mut self) {
         for frame in self.frames.iter_mut() {
             frame.reverse()
         }
@@ -138,6 +150,14 @@ impl ReplayFrame {
         Self::default()
     }
 
+    pub fn parse(str: &str) -> Result<Self, Error> {
+        Self::from_str(str)
+    }
+
+    pub fn serialize(&self) -> String {
+        self.into()
+    }
+
     fn reverse(&mut self) {
         if self.y > Self::CENTER_Y {
             let diff = self.y - Self::CENTER_Y;
@@ -149,5 +169,39 @@ impl ReplayFrame {
             self.y = self.y + diff * 2.0;
             return;
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use crate::replay::replay_data::ReplayFrame;
+
+    // Replay Frame
+    #[test]
+    fn parse_frame() {
+        let valid_frame = "16|265.6|132|11";
+
+        let frame = ReplayFrame::parse(valid_frame).unwrap();
+
+        assert_eq!(frame.w, 16);
+        assert_eq!(frame.x, 265.6);
+        assert_eq!(frame.y, 132.0);
+        assert_eq!(frame.z, 11);
+    }
+
+    #[test]
+    fn serialize_frame() {
+        let frame = ReplayFrame {
+            w: 16,
+            x: 265.6,
+            y: 132.0,
+            z: 11,
+        };
+
+        let serialized_frame = frame.serialize();
+
+        assert_eq!(serialized_frame, "16|265.6|132|11")
     }
 }
