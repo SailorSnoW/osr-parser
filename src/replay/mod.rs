@@ -1,5 +1,6 @@
 use crate::error::Error;
 use crate::types::*;
+use life_bar::*;
 use replay_data::*;
 use std::borrow::Borrow;
 use std::fs::{self, File};
@@ -13,7 +14,8 @@ use crate::utils::read::*;
 use crate::utils::*;
 use chrono::NaiveDateTime;
 
-mod replay_data;
+pub mod life_bar;
+pub mod replay_data;
 
 /// Structure of a replay containing parsed values
 #[derive(Debug, Default)]
@@ -48,12 +50,12 @@ pub struct Replay {
     /// (true = no misses and no slider breaks and no early finished sliders)
     pub is_full_combo: bool,
     /// Mods used (combination)
-    pub mods: Integer,
+    pub mods: Mods,
     /// Life bar graph: comma separated pairs u/v.
     /// u is the time in milliseconds into the song,
     /// v is a floating point value from 0 - 1 that represents the amount of life you have at the given time
     /// (0 = life bar is empty, 1= life bar is full)
-    pub life_bar_graph: Option<String>,
+    pub life_bar_graph: LifeBar,
 
     /// Parsed date and time of the play from the ticks timestamp
     pub play_date: NaiveDateTime,
@@ -110,8 +112,8 @@ impl TryFrom<Replay> for Vec<u8> {
         buffer.append(&mut replay.total_score.to_le_bytes().to_vec());
         buffer.append(&mut replay.greatest_combo.to_le_bytes().to_vec());
         buffer.push(replay.is_full_combo.into());
-        buffer.append(&mut replay.mods.to_le_bytes().to_vec());
-        write_string(&replay.life_bar_graph.as_deref(), &mut buffer);
+        buffer.append(&mut replay.mods.bits().to_le_bytes().to_vec());
+        write_string(&Some(&replay.life_bar_graph.serialize()), &mut buffer);
         buffer.append(&mut datetime_to_ticks(replay.play_date).to_le_bytes().to_vec());
         let mut replay_data_compressed: Vec<u8> = replay.replay_data.borrow().try_into()?;
         buffer.append(
@@ -119,6 +121,7 @@ impl TryFrom<Replay> for Vec<u8> {
                 .to_le_bytes()
                 .to_vec(),
         );
+
         buffer.append(&mut replay_data_compressed);
         buffer.append(&mut replay.score_id.to_le_bytes().to_vec());
 
@@ -156,8 +159,8 @@ impl TryFrom<Vec<u8>> for Replay {
             _ => return Err(Error::UnexpectedFullComboValue),
         };
 
-        let mods = read::read_integer(buffer)?;
-        let life_bar_graph = read::read_string(buffer)?;
+        let mods = read::read_integer(buffer)?.into();
+        let life_bar_graph = LifeBar::from_str(&read::read_string(buffer)?.unwrap_or_default())?;
         let play_date = Self::read_play_date(buffer)?;
         let compressed_length = read::read_integer(buffer)?;
 
@@ -218,7 +221,7 @@ impl TryFrom<&File> for Replay {
 mod tests {
     use std::path::Path;
 
-    use super::{Gamemode, Replay};
+    use super::{Gamemode, Mods, Replay};
 
     const TEST_REPLAY_FILE: &'static str = "./assets/examples/replay-test.osr";
     const TEST_NEW_REPLAY_FILE: &'static str = "./assets/examples/replay-new.osr";
@@ -243,8 +246,8 @@ mod tests {
         assert_eq!(replay.total_score, 13392443);
         assert_eq!(replay.greatest_combo, 852);
         assert_eq!(replay.is_full_combo, true);
-        assert_eq!(replay.mods, 8);
-        assert_eq!(replay.life_bar_graph, Some("".to_string()));
+        assert_eq!(replay.mods, Mods::HIDDEN);
+        assert_eq!(replay.life_bar_graph.events().len(), 0);
         assert_eq!(
             replay.play_date.format("%Y-%m-%d %H:%M:%S").to_string(),
             "2021-07-08 18:26:50"
