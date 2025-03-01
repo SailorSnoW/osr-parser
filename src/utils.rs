@@ -33,13 +33,35 @@ pub mod read {
         Ok(LittleEndian::read_i64(&x))
     }
 
+    pub fn read_uleb128<R: Read>(buf: &mut R) -> ReadResult<u64> {
+        let mut value: u64 = 0;
+        let mut bytes_read = 0;
+
+        loop {
+            let byte = read_byte(buf)?;
+
+            let byte_value = (byte & 0b0111_1111) as u64;
+            value |= byte_value << (7 * bytes_read);
+
+            bytes_read += 1;
+
+            if (byte & !0b0111_1111) == 0 {
+                break;
+            }
+        }
+
+        Ok(value)
+    }
+
     pub fn read_string<R: Read>(buf: &mut R) -> ReadResult<Option<String>> {
         match read_byte(buf)? {
             0x0b => {
-                let string_size = read_byte(buf)?;
+                let string_size = read_uleb128(buf)?;
+
                 if string_size == 0 {
                     return Ok(Some(String::from("")));
                 }
+
                 let mut x = vec![0u8; string_size as usize];
                 buf.read_exact(&mut x)
                     .map_err(|_| Error::ReadBufferingError)?;
