@@ -12,7 +12,7 @@ use crate::utils::file::ensure_replay_file;
 use crate::utils::lzma::decompress_replay_data;
 use crate::utils::read::*;
 use crate::utils::*;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 
 pub mod life_bar;
 pub mod replay_data;
@@ -58,7 +58,7 @@ pub struct Replay {
     pub life_bar_graph: LifeBar,
 
     /// Parsed date and time of the play from the ticks timestamp
-    pub play_date: NaiveDateTime,
+    pub play_date: DateTime<Utc>,
 
     /// Uncompressed and parsed replay data
     pub replay_data: ReplayData,
@@ -86,7 +86,7 @@ impl Replay {
         Ok(fs::write(path, buffer)?)
     }
 
-    fn read_play_date<R: Read>(buf: &mut R) -> ReadResult<NaiveDateTime> {
+    fn read_play_date<R: Read>(buf: &mut R) -> ReadResult<DateTime<Utc>> {
         let timestamp_ticks = read_long(buf)?;
         Ok(ticks_to_datetime(timestamp_ticks))
     }
@@ -167,7 +167,7 @@ impl TryFrom<Vec<u8>> for Replay {
         let mut compressed_replay_data = vec![0u8; compressed_length as usize];
         buffer
             .read(&mut compressed_replay_data)
-            .map_err(|_| Error::ReadBufferingError)?;
+            .map_err(|_| Error::ReadBuffering)?;
 
         let decompressed_replay_data = decompress_replay_data(&compressed_replay_data)?;
 
@@ -209,7 +209,7 @@ impl TryFrom<&File> for Replay {
 
         reader
             .read_to_end(&mut buffer)
-            .map_err(|_| Error::FileBufferingError)?;
+            .map_err(|_| Error::FileBuffering)?;
 
         buffer.try_into()
     }
@@ -223,16 +223,16 @@ mod tests {
 
     use super::{Gamemode, Mods, Replay};
 
-    const TEST_REPLAY_FILE: &'static str = "./assets/examples/replay-test.osr";
-    const TEST_NEW_REPLAY_FILE: &'static str = "./assets/examples/replay-new.osr";
+    const TEST_REPLAY_FILE: &str = "./assets/examples/replay-test.osr";
+    const TEST_NEW_REPLAY_FILE: &str = "./assets/examples/replay-new.osr";
 
     #[test]
     fn open_replay() {
         let replay_path = Path::new(TEST_REPLAY_FILE);
 
-        let replay = Replay::open(&replay_path).unwrap();
+        let replay = Replay::open(replay_path).unwrap();
 
-        assert_eq!(replay.gamemode, Gamemode::STD);
+        assert_eq!(replay.gamemode, Gamemode::Std);
         assert_eq!(replay.game_version, 20210520);
         assert_eq!(replay.map_hash, "400751ddba867c309b16487d546dcfdd");
         assert_eq!(replay.player_name, "Sailor SnoW");
@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(replay.number_misses, 0);
         assert_eq!(replay.total_score, 13392443);
         assert_eq!(replay.greatest_combo, 852);
-        assert_eq!(replay.is_full_combo, true);
+        assert!(replay.is_full_combo);
         assert_eq!(replay.mods, Mods::HIDDEN);
         assert_eq!(replay.life_bar_graph.events().len(), 0);
         assert_eq!(
@@ -261,7 +261,7 @@ mod tests {
     fn write_replay() {
         let replay_path = Path::new(TEST_REPLAY_FILE);
 
-        let replay = Replay::open(&replay_path).unwrap();
+        let replay = Replay::open(replay_path).unwrap();
 
         replay.write(Path::new(TEST_NEW_REPLAY_FILE)).unwrap();
     }

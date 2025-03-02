@@ -11,9 +11,9 @@ pub enum Error {
     #[error("Can't create file at the following path: {}", path)]
     CantCreateFile { path: String },
     #[error("Unknown error while buffering the file replay datas")]
-    FileBufferingError,
+    FileBuffering,
     #[error("Unexpected error while reading the value into buffer")]
-    ReadBufferingError,
+    ReadBuffering,
 
     #[error("Invalid gamemode replay value")]
     InvalidGamemode,
@@ -25,9 +25,9 @@ pub enum Error {
     UnexpectedStringValue,
 
     #[error("Unknown error while decompressing replay data")]
-    ReplayDataDecompressError,
+    ReplayDataDecompress,
     #[error("Unexpected error while loading the lzma encoder")]
-    NewLzmaEncoderError,
+    NewLzmaEncoder,
 
     #[error("Invalid event string format")]
     InvalidStringFrameFormat,

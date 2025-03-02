@@ -31,9 +31,8 @@ impl FromStr for ReplayData {
                 break;
             }
 
-            match ReplayFrame::from_str(frame) {
-                Ok(f) => frames.push(f),
-                Err(_) => (),
+            if let Ok(f) = ReplayFrame::from_str(frame) {
+                frames.push(f)
             }
         }
 
@@ -144,13 +143,11 @@ impl ReplayFrame {
     fn reverse(&mut self) {
         if self.y > Self::CENTER_Y {
             let diff = self.y - Self::CENTER_Y;
-            self.y = self.y - diff * 2.0;
-            return;
+            self.y -= diff * 2.0;
         }
         if self.y < Self::CENTER_Y {
             let diff = Self::CENTER_Y - self.y;
-            self.y = self.y + diff * 2.0;
-            return;
+            self.y += diff * 2.0;
         }
     }
 }

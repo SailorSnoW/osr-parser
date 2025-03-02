@@ -12,25 +12,25 @@ pub type Float = f32;
 // Format types
 #[derive(Debug, PartialEq, Eq)]
 pub enum Gamemode {
-    STD,
-    TAIKO,
-    CTB,
-    MANIA,
+    Std,
+    Taiko,
+    Ctb,
+    Mania,
 }
 
 impl Default for Gamemode {
     fn default() -> Self {
-        Self::STD
+        Self::Std
     }
 }
 
 impl From<&Gamemode> for u8 {
     fn from(gamemode: &Gamemode) -> Self {
         match gamemode {
-            Gamemode::STD => 0,
-            Gamemode::TAIKO => 1,
-            Gamemode::CTB => 2,
-            Gamemode::MANIA => 3,
+            Gamemode::Std => 0,
+            Gamemode::Taiko => 1,
+            Gamemode::Ctb => 2,
+            Gamemode::Mania => 3,
         }
     }
 }
@@ -40,10 +40,10 @@ impl TryFrom<Byte> for Gamemode {
 
     fn try_from(value: Byte) -> Result<Self, Self::Error> {
         match value {
-            0x00 => Ok(Self::STD),
-            0x01 => Ok(Self::TAIKO),
-            0x02 => Ok(Self::CTB),
-            0x03 => Ok(Self::MANIA),
+            0x00 => Ok(Self::Std),
+            0x01 => Ok(Self::Taiko),
+            0x02 => Ok(Self::Ctb),
+            0x03 => Ok(Self::Mania),
             _ => Err(Error::InvalidGamemode),
         }
     }

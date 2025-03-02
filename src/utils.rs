@@ -1,5 +1,5 @@
 use crate::types::Long;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 
 pub mod read {
     use crate::error::Error;
@@ -11,25 +11,25 @@ pub mod read {
 
     pub fn read_byte<R: Read>(buf: &mut R) -> ReadResult<Byte> {
         let mut x = [0];
-        buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
+        buf.read(&mut x).map_err(|_| Error::ReadBuffering)?;
         Ok(x[0])
     }
 
     pub fn read_short<R: Read>(buf: &mut R) -> ReadResult<Short> {
         let mut x = [0, 0];
-        buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
+        buf.read(&mut x).map_err(|_| Error::ReadBuffering)?;
         Ok(LittleEndian::read_u16(&x))
     }
 
     pub fn read_integer<R: Read>(buf: &mut R) -> ReadResult<Integer> {
         let mut x = [0, 0, 0, 0];
-        buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
+        buf.read(&mut x).map_err(|_| Error::ReadBuffering)?;
         Ok(LittleEndian::read_u32(&x))
     }
 
     pub fn read_long<R: Read>(buf: &mut R) -> ReadResult<Long> {
         let mut x = [0, 0, 0, 0, 0, 0, 0, 0];
-        buf.read(&mut x).map_err(|_| Error::ReadBufferingError)?;
+        buf.read(&mut x).map_err(|_| Error::ReadBuffering)?;
         Ok(LittleEndian::read_i64(&x))
     }
 
@@ -63,16 +63,13 @@ pub mod read {
                 }
 
                 let mut x = vec![0u8; string_size as usize];
-                buf.read_exact(&mut x)
-                    .map_err(|_| Error::ReadBufferingError)?;
+                buf.read_exact(&mut x).map_err(|_| Error::ReadBuffering)?;
                 Ok(Some(
                     String::from_utf8(x).map_err(|_| Error::CantReadString)?,
                 ))
             }
-            0x00 => {
-                return Ok(None);
-            }
-            _ => return Err(Error::UnexpectedStringValue),
+            0x00 => Ok(None),
+            _ => Err(Error::UnexpectedStringValue),
         }
     }
 
@@ -135,14 +132,13 @@ pub mod file {
     }
 }
 
-pub fn ticks_to_datetime(t_ticks: Long) -> NaiveDateTime {
-    NaiveDateTime::from_timestamp(((t_ticks / 10000000) - 62135596800).try_into().unwrap(), 0)
+pub fn ticks_to_datetime(t_ticks: Long) -> DateTime<Utc> {
+    DateTime::from_timestamp((t_ticks / 10000000) - 62135596800, 0).unwrap()
 }
 
-pub fn datetime_to_ticks(datetime: NaiveDateTime) -> Long {
+pub fn datetime_to_ticks(datetime: DateTime<Utc>) -> Long {
     let unix = datetime.timestamp();
-    let t_ticks = ((unix + 62135596800) * 10000000) as Long;
-    t_ticks
+    (unix + 62135596800) * 10000000
 }
 
 #[cfg(test)]

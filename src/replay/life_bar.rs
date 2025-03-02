@@ -39,10 +39,9 @@ impl FromStr for LifeBar {
         let mut events: Vec<LifeBarEvent> = Vec::new();
 
         for event in splitted_events.iter() {
-            if event.len() > 0 && event.contains(',') {
-                match LifeBarEvent::from_str(event) {
-                    Ok(e) => events.push(e),
-                    Err(_) => (),
+            if !event.is_empty() && event.contains(',') {
+                if let Ok(e) = LifeBarEvent::from_str(event) {
+                    events.push(e)
                 }
             }
         }
@@ -56,7 +55,7 @@ impl FromStr for LifeBar {
 
 impl From<&LifeBar> for String {
     fn from(life_bar: &LifeBar) -> Self {
-        if life_bar.events().len() == 0 {
+        if life_bar.events().is_empty() {
             return String::from("");
         }
 
@@ -72,7 +71,7 @@ impl From<&LifeBar> for String {
             s.push_str(&serialized);
         }
 
-        if s.len() > 0 {
+        if !s.is_empty() {
             s.push('|')
         }
 
